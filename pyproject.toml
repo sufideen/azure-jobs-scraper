@@ -1,0 +1,23 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "venv/*",
+    "tests/*",
+    "*/site-packages/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+
+[tool.bandit]
+# B101 = assert statements (fine in tests)
+# B324 = MD5 usage (intentional — used for dedup fingerprinting, not cryptography)
+skips = ["B101", "B324"]

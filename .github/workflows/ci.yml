@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Job 1: Lint ──────────────────────────────────────────────────────────────
+  lint:
+    name: Lint (flake8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install flake8
+        run: pip install flake8==7.2.0
+
+      - name: Run flake8
+        run: flake8 scraper.py scrapers/ utils/ --max-line-length=110
+
+  # ── Job 2: Security ──────────────────────────────────────────────────────────
+  security:
+    name: Security (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install bandit
+        run: pip install bandit==1.8.3
+
+      - name: Run bandit
+        run: bandit -r scraper.py scrapers/ utils/ -ll -c pyproject.toml
+
+  # ── Job 3: Tests + Coverage ───────────────────────────────────────────────────
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install runtime dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install dev dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run pytest with coverage
+        run: pytest tests/ --cov=. --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

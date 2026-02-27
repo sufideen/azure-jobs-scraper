@@ -1,0 +1,29 @@
+# Credentials — never commit
+.env
+
+# Virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Output files
+output/
+logs/
+/home/sufideen/azure_jobs_*.csv
+/home/sufideen/azure_jobs_*.html
+
+# Test / coverage artifacts
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Editor
+.vscode/
+.idea/
+*.swp
