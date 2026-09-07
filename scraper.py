@@ -40,6 +40,8 @@ from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
+from utils.match import match_label, score_job
+
 # Load .env from the same directory as this script
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -85,7 +87,7 @@ CSV_FIELDNAMES = [f.name for f in fields(Job) if f.name != "dedup_key"]
 def save_to_csv(jobs: list, filepath: str) -> None:
     Path(filepath).parent.mkdir(parents=True, exist_ok=True)
     with open(filepath, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES)
+        writer = csv.DictWriter(f, fieldnames=CSV_FIELDNAMES + ["match"])
         writer.writeheader()
         for job in jobs:
             writer.writerow({
@@ -101,22 +103,35 @@ def save_to_csv(jobs: list, filepath: str) -> None:
                 "source": job.source,
                 "date_posted": job.date_posted,
                 "job_type": job.job_type,
+                "match": match_label(score_job(job)),
             })
     log.info("CSV saved: %s (%d jobs)", filepath, len(jobs))
 
 # ── HTML Report ───────────────────────────────────────────────────────────────
 
 
+MATCH_BADGE_COLOURS = {
+    "Strong": ("#1a7340", "#e3f5ea"),
+    "Good": ("#8a6500", "#fbf1d8"),
+    "Fair": ("#555555", "#eeeeee"),
+    "Low": ("#a03030", "#fbe6e6"),
+}
+
+
 def build_html_report(jobs: list, session_label: str = "") -> str:
     """
     Build a Gmail-safe inline-CSS HTML report.
-    Jobs sorted by salary descending.
+    Jobs sorted by CV match score descending, then salary descending.
     Salary colour-coded: green >= £80k, amber £50k–£79k, grey unknown.
     """
     generated_at = datetime.now(timezone.utc).strftime("%d %B %Y, %H:%M UTC")
     label_text = f" \u2014 {session_label}" if session_label else ""
 
-    sorted_jobs = sorted(jobs, key=lambda j: (j.salary_max or 0), reverse=True)
+    sorted_jobs = sorted(
+        jobs,
+        key=lambda j: (score_job(j), j.salary_max or 0),
+        reverse=True,
+    )
 
     rows_html = ""
     for i, job in enumerate(sorted_jobs):
@@ -128,6 +143,9 @@ def build_html_report(jobs: list, session_label: str = "") -> str:
             sal_colour = "#8a6500"
         else:
             sal_colour = "#666666"
+
+        match = match_label(score_job(job))
+        match_fg, match_bg = MATCH_BADGE_COLOURS[match]
 
         desc_short = (
             job.description[:200] + "..." if len(job.description) > 200 else job.description
@@ -147,7 +165,14 @@ def build_html_report(jobs: list, session_label: str = "") -> str:
         rows_html += f"""
     <tr>
       <td style="padding:10px 12px;border-bottom:1px solid #e0e0e0;background:{bg};
-                 vertical-align:top;width:22%;">
+                 vertical-align:top;width:8%;">
+        <span style="display:inline-block;padding:3px 8px;border-radius:10px;
+                     font-size:10px;font-weight:700;color:{match_fg};background:{match_bg};">
+          {match}
+        </span>
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e0e0e0;background:{bg};
+                 vertical-align:top;width:20%;">
         <a href="{job.url}" style="color:#0078D4;text-decoration:none;font-weight:600;
                                    font-size:13px;line-height:1.4;" target="_blank">
           {title_safe}
@@ -155,20 +180,20 @@ def build_html_report(jobs: list, session_label: str = "") -> str:
         <div style="font-size:11px;color:#888;margin-top:3px;">{job.source}</div>
       </td>
       <td style="padding:10px 12px;border-bottom:1px solid #e0e0e0;background:{bg};
-                 vertical-align:top;width:17%;font-size:12px;color:#333;">
+                 vertical-align:top;width:15%;font-size:12px;color:#333;">
         {company_safe}
       </td>
       <td style="padding:10px 12px;border-bottom:1px solid #e0e0e0;background:{bg};
-                 vertical-align:top;width:15%;font-size:12px;color:{sal_colour};font-weight:600;">
+                 vertical-align:top;width:13%;font-size:12px;color:{sal_colour};font-weight:600;">
         {job.salary_raw}
       </td>
       <td style="padding:10px 12px;border-bottom:1px solid #e0e0e0;background:{bg};
-                 vertical-align:top;width:12%;font-size:11px;color:#555;">
+                 vertical-align:top;width:11%;font-size:11px;color:#555;">
         {location_safe}<br>
         <span style="color:#888;">{job_type_safe}</span>
       </td>
       <td style="padding:10px 12px;border-bottom:1px solid #e0e0e0;background:{bg};
-                 vertical-align:top;width:34%;font-size:11px;color:#555;line-height:1.5;">
+                 vertical-align:top;width:33%;font-size:11px;color:#555;line-height:1.5;">
         {desc_safe}
       </td>
     </tr>"""
@@ -204,6 +229,9 @@ def build_html_report(jobs: list, session_label: str = "") -> str:
          style="background:#ffffff;border-radius:0 0 8px 8px;
                 border:1px solid #e0e0e0;border-top:none;">
     <tr style="background:#f5f5f5;">
+      <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:600;
+                 color:#555;text-transform:uppercase;letter-spacing:0.5px;
+                 border-bottom:2px solid #d0d0d0;">Match</th>
       <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:600;
                  color:#555;text-transform:uppercase;letter-spacing:0.5px;
                  border-bottom:2px solid #d0d0d0;">Job Title</th>
