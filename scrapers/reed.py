@@ -91,14 +91,15 @@ def _extract_jobs(html: str) -> list:
         if not is_within_7_days(date_str):
             continue
 
-        # Salary — Reed provides structured numeric values
+        # Salary — Reed provides structured numeric values.
+        # Note: "salaryDescription" is NOT human-readable salary text despite the
+        # name — it's an unrelated small internal code (observed values: 0, 16,
+        # 64) — using it for display previously leaked those numbers straight
+        # into the report. Always build the display string from salaryFrom/To.
         sal_from = jd.get("salaryFrom") or 0
         sal_to = jd.get("salaryTo") or 0
         sal_type_id = jd.get("salaryType") or 1
         sal_type = _reed_salary_type(sal_type_id)
-        # salaryDescription can be int (0) in some Reed responses — coerce to str safely
-        sal_desc_raw = jd.get("salaryDescription")
-        sal_desc = str(sal_desc_raw).strip() if sal_desc_raw else ""
 
         if sal_from > 0:
             if sal_type == "daily":
@@ -111,16 +112,30 @@ def _extract_jobs(html: str) -> list:
             else:
                 sal_min = int(sal_from)
                 sal_max = int(sal_to) if sal_to else sal_min
-                sal_display = sal_desc or f"£{sal_min:,}–£{sal_max:,}"
+                # Reed listings occasionally carry a garbled upper bound (e.g. a
+                # £50k role showing salaryTo=550000) — treat an annual range
+                # wider than 3x the lower bound as bad data and drop it.
+                if sal_max > sal_min * 3:
+                    log.warning(
+                        "Reed: implausible salary range £%s-£%s for '%s', "
+                        "dropping upper bound", sal_min, sal_max, title,
+                    )
+                    sal_max = sal_min
+                sal_display = (
+                    f"£{sal_min:,}" if sal_max == sal_min
+                    else f"£{sal_min:,}–£{sal_max:,}"
+                )
         else:
             sal_min, sal_max, sal_type = None, None, "unknown"
-            sal_display = sal_desc or "Not specified"
+            sal_display = "Not specified"
 
         if not salary_passes_filter(sal_min, sal_max):
             continue
 
-        # Description — strip HTML
-        raw_desc = jd.get("jobDescription") or ""
+        # Description — Reed's search results only expose a short snippet
+        # (the full description lives on the individual job page, which this
+        # scraper doesn't fetch); strip any HTML just in case.
+        raw_desc = jd.get("jobDescriptionSnippet") or ""
         description = BeautifulSoup(raw_desc, "lxml").get_text(" ", strip=True)
 
         # SC Cleared filter

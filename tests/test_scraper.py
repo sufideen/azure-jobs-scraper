@@ -188,6 +188,13 @@ class TestReedScraper:
         assert jobs[0].title == "Azure Cloud Engineer"
         assert jobs[0].source == "Reed"
 
+    def test_description_read_from_snippet_field(self, sample_html_reed):
+        # Reed's search results only expose "jobDescriptionSnippet", not
+        # "jobDescription" (which doesn't exist in the real payload).
+        from scrapers.reed import _extract_jobs
+        jobs = _extract_jobs(sample_html_reed)
+        assert "cloud infrastructure" in jobs[0].description.lower()
+
     def test_excludes_sc_cleared(self, sample_html_reed_sc_cleared):
         from scrapers.reed import _extract_jobs
         jobs = _extract_jobs(sample_html_reed_sc_cleared)
@@ -197,6 +204,62 @@ class TestReedScraper:
         from scrapers.reed import _extract_jobs
         jobs = _extract_jobs("<html><body>No data here</body></html>")
         assert jobs == []
+
+    def test_implausible_salary_range_caps_upper_bound(self):
+        # Real-world case: Reed served salaryFrom=50000, salaryTo=550000 for a
+        # role that plainly isn't paying up to £550k — the >3x jump is bad
+        # data, not a real range, so the upper bound should be dropped.
+        import json
+        from scrapers.reed import _extract_jobs
+        payload = {
+            "props": {"pageProps": {"searchResults": {"jobs": [{
+                "jobDetail": {
+                    "jobTitle": "3rd line Service Desk Engineer",
+                    "dateCreated": "2026-09-06T08:00:00Z",
+                    "salaryFrom": 50000,
+                    "salaryTo": 550000,
+                    "salaryType": 5,
+                    "salaryDescription": 0,
+                    "jobDescriptionSnippet": "Service desk support role.",
+                    "displayLocationName": "London",
+                    "ouName": "Example Ltd",
+                    "jobType": 1,
+                },
+                "url": "/jobs/example/1",
+            }]}}}
+        }
+        html = f'<html><script id="__NEXT_DATA__">{json.dumps(payload)}</script></html>'
+        jobs = _extract_jobs(html)
+        assert len(jobs) == 1
+        assert jobs[0].salary_max == 50000
+        assert jobs[0].salary_raw == "£50,000"
+
+    def test_salary_description_int_not_used_as_display(self):
+        # Real-world case: salaryDescription=64 (an unrelated internal code)
+        # must never leak into salary_raw as the literal string "64".
+        import json
+        from scrapers.reed import _extract_jobs
+        payload = {
+            "props": {"pageProps": {"searchResults": {"jobs": [{
+                "jobDetail": {
+                    "jobTitle": "Senior DevOps Engineer",
+                    "dateCreated": "2026-09-06T08:00:00Z",
+                    "salaryFrom": 70000,
+                    "salaryTo": 90000,
+                    "salaryType": 5,
+                    "salaryDescription": 64,
+                    "jobDescriptionSnippet": "Azure DevOps role.",
+                    "displayLocationName": "London",
+                    "ouName": "Example Ltd",
+                    "jobType": 1,
+                },
+                "url": "/jobs/example/2",
+            }]}}}
+        }
+        html = f'<html><script id="__NEXT_DATA__">{json.dumps(payload)}</script></html>'
+        jobs = _extract_jobs(html)
+        assert len(jobs) == 1
+        assert jobs[0].salary_raw == "£70,000–£90,000"
 
 
 # ── CW Jobs scraper integration ───────────────────────────────────────────────
