@@ -25,6 +25,7 @@ import argparse
 import csv
 import logging
 import os
+import re
 import smtplib
 import ssl
 import sys
@@ -326,6 +327,67 @@ def send_email_report(
     except Exception as e:
         log.error("Email send failed: %s", e)
 
+# ── Application Kit Generation (Claude API) ──────────────────────────────────
+
+
+def _slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:60] or "job"
+
+
+def generate_application_kits(jobs: list, output_dir) -> list:
+    """
+    For each "Strong" CV-match job, call the Claude API for a tailored
+    CV-tweak summary and cover letter, and save the result to output_dir.
+
+    Skips entirely (with a log message, not an error) if ANTHROPIC_API_KEY
+    isn't set or cv.txt is missing — this feature is optional and the rest
+    of the run must succeed without it. Returns the list of saved paths.
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        log.info("ANTHROPIC_API_KEY not set — skipping application draft generation.")
+        return []
+
+    strong_jobs = [j for j in jobs if match_label(score_job(j)) == "Strong"]
+    if not strong_jobs:
+        log.info("No Strong CV matches this run — no application drafts to generate.")
+        return []
+
+    cv_path = Path(__file__).parent / "cv.txt"
+    if not cv_path.exists():
+        log.warning(
+            "cv.txt not found — skipping application draft generation. "
+            "Create it in the project root (see .env.example)."
+        )
+        return []
+    cv_text = cv_path.read_text(encoding="utf-8")
+
+    import anthropic
+
+    from utils.apply_kit import generate_application_kit
+
+    client = anthropic.Anthropic(api_key=api_key)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_paths = []
+    for job in strong_jobs:
+        try:
+            markdown = generate_application_kit(client, cv_text, job)
+        except Exception as e:
+            log.error("Application kit generation failed for '%s': %s", job.title, e)
+            continue
+
+        filepath = output_dir / f"{_slugify(f'{job.company}-{job.title}')}.md"
+        filepath.write_text(
+            f"# {job.title} — {job.company}\n\n{job.url}\n\n{markdown}\n",
+            encoding="utf-8",
+        )
+        saved_paths.append(filepath)
+        log.info("Application draft saved: %s", filepath)
+
+    return saved_paths
+
 # ── Main Orchestrator ─────────────────────────────────────────────────────────
 
 
@@ -397,6 +459,10 @@ def main() -> None:
     log.info("Output files:")
     log.info("  CSV:  %s", csv_filepath)
     log.info("  HTML: %s", html_filepath)
+
+    # ── Application drafts (Strong CV matches only) ──────────────────────────
+    kits_dir = OUTPUT_DIR / "applications" / timestamp
+    generate_application_kits(unique_jobs, kits_dir)
 
     # ── Send email ────────────────────────────────────────────────────────────
     if args.dry_run:

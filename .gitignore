@@ -1,6 +1,9 @@
 # Credentials — never commit
 .env
 
+# Personal CV text (contains phone number / career history) — never commit
+cv.txt
+
 # Virtual environment
 venv/
 
