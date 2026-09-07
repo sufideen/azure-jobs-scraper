@@ -5,6 +5,7 @@ sys.path is patched here so that `from scraper import Job` and
 `from utils.xxx import ...` resolve when pytest is run from the project root.
 """
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Ensure the project root is on sys.path so all imports resolve correctly
@@ -15,6 +16,15 @@ if str(PROJECT_ROOT) not in sys.path:
 import pytest  # noqa: E402 — must come after sys.path fix
 
 from scraper import Job  # noqa: E402
+
+
+def _recent_iso(days_ago: int = 1) -> str:
+    """An ISO 8601 UTC timestamp `days_ago` days before now.
+
+    Used in HTML fixtures fed through the real 7-day recency filter, so a
+    hardcoded calendar date wouldn't age out of the window as time passes.
+    """
+    return (datetime.now(timezone.utc) - timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @pytest.fixture
@@ -97,7 +107,7 @@ def sample_html_reed():
                         {
                             "jobDetail": {
                                 "jobTitle": "Azure Cloud Engineer",
-                                "dateCreated": "2026-02-26T08:00:00Z",
+                                "dateCreated": _recent_iso(),
                                 "salaryFrom": 65000,
                                 "salaryTo": 80000,
                                 "salaryType": 1,
@@ -129,7 +139,7 @@ def sample_html_reed_sc_cleared():
                         {
                             "jobDetail": {
                                 "jobTitle": "Azure Engineer - SC Cleared",
-                                "dateCreated": "2026-02-26T08:00:00Z",
+                                "dateCreated": _recent_iso(),
                                 "salaryFrom": 70000,
                                 "salaryTo": 90000,
                                 "salaryType": 1,
@@ -159,7 +169,7 @@ def sample_html_cwjobs():
     items = [
         {
             "title": "Azure Network Engineer",
-            "datePosted": "2026-02-25T12:00:00Z",
+            "datePosted": _recent_iso(),
             "salary": "£60,000 - £75,000 per annum",
             "textSnippet": "Manage Azure networking components including VNets and ExpressRoute.",
             "location": "London",
