@@ -18,6 +18,7 @@ jobs:
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OUTPUT_DIR: ${{ github.workspace }}
         run: python scraper.py
       - name: Upload report as artifact too
         if: always()

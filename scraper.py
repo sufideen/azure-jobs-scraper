@@ -58,7 +58,7 @@ log = logging.getLogger(__name__)
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 LONDON_TZ = ZoneInfo("Europe/London")
-OUTPUT_DIR = Path("/home/sufideen")
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", str(Path.home())))
 
 # ── Data Model ────────────────────────────────────────────────────────────────
 
