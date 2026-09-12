@@ -55,10 +55,12 @@ def score_job(job) -> int:
     title = (job.title or "").lower()
     text = f"{title} {(job.description or '').lower()}"
 
+    core_hits = 0
     score = 0
     for kw in CORE_SKILLS:
         if kw in text:
             score += CORE_WEIGHT
+            core_hits += 1
             if kw in title:
                 score += TITLE_BONUS
     for kw in SECONDARY_SKILLS:
@@ -67,6 +69,12 @@ def score_job(job) -> int:
     for kw in MISMATCH_KEYWORDS:
         if kw in text:
             score -= MISMATCH_PENALTY
+
+    if core_hits == 0:
+        # No genuine Azure/architecture-specific signal at all — cap so
+        # generic secondary-keyword overlap alone can never read as a
+        # real match (this is what let non-Azure roles through before).
+        score = min(score, 0)
 
     return score
 
