@@ -316,7 +316,8 @@ def send_email_report(
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
             server.login(gmail_user, gmail_app_password)
-            server.sendmail(gmail_user, to_email, msg.as_string())
+            recipients = [addr.strip() for addr in to_email.split(",") if addr.strip()]
+            server.sendmail(gmail_user, recipients, msg.as_string())
         log.info("Email sent to %s — subject: %s", to_email, subject)
     except smtplib.SMTPAuthenticationError:
         log.error(
