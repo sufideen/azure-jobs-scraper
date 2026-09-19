@@ -218,3 +218,14 @@ and GitHub Actions CI.
 This project scrapes publicly accessible job listings for personal use.
 Always review a site's `robots.txt` and Terms of Service before scraping.
 Polite delays are built in to avoid overloading servers.
+
+## Data handling and privacy (GDPR)
+
+- Job listings are public data. Your CV and contact details are personal data:
+  `cv.txt`, `.env` and generated output are git-ignored and must never be committed.
+- Nothing is sent to third parties except the job-board requests and, if enabled,
+  the LLM API used to tailor applications, so avoid sending more personal detail than
+  needed.
+- Keep generated application kits and CSV output on your own machine and delete them
+  when no longer needed (data minimisation, storage limitation).
+- Respect each job board's terms of service and `robots.txt`.
